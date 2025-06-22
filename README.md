@@ -49,6 +49,7 @@ book_maker/
 │   └── done/        # Processed files will be moved here
 ├── book_converter.py # Main script
 └── requirements.txt  # Python dependencies
+└── tts_sdkokoro.py # Text to speech functions
 ```
 
 ### Basic Usage
