@@ -1,0 +1,11 @@
+PyMuPDF>=1.25.5
+ebooklib>=0.18
+beautifulsoup4>=4.12.0
+numpy>=1.24.3
+scipy>=1.11.0
+striprtf>=0.0.29
+kokoro>=0.1.0
+setuptools>=65.5.1
+pydub>=0.25.1
+# Optional: mobi>=0.3.3 (for MOBI/PRC support)
+# Optional: Install calibre from calibre-ebook.com (for LIT support)
