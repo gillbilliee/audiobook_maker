@@ -21,8 +21,8 @@ A Python script that converts ebooks to audiobooks using text-to-speech. Support
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ebook_maker.git
-   cd ebook_maker
+   git clone https://github.com/gillbillieee/audiobook_maker.git
+   cd audiobook_maker
    ```
 
 2. Install the required packages:
@@ -39,6 +39,18 @@ A Python script that converts ebooks to audiobooks using text-to-speech. Support
 
 ## Usage
 
+### Directory Structure
+
+```
+book_maker/
+├── books/
+│   ├── to-do/      # Place your input files here
+│   ├── audio/       # Output audio files will be saved here
+│   └── done/        # Processed files will be moved here
+├── book_converter.py # Main script
+└── requirements.txt  # Python dependencies
+```
+
 ### Basic Usage
 
 1. Place your ebook files in the `books/to-do` directory
@@ -54,18 +66,6 @@ A Python script that converts ebooks to audiobooks using text-to-speech. Support
 Process a single file:
 ```bash
 python book_converter.py input.epub output.wav
-```
-
-### Directory Structure
-
-```
-book_maker/
-├── books/
-│   ├── to-do/      # Place your input files here
-│   ├── audio/       # Output audio files will be saved here
-│   └── done/        # Processed files will be moved here
-├── book_converter.py # Main script
-└── requirements.txt  # Python dependencies
 ```
 
 ## Supported Formats
@@ -140,9 +140,6 @@ The script will randomly select from these voices for each file by default. You 
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
