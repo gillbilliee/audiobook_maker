@@ -437,13 +437,24 @@ AMERICAN_FEMALE_VOICES = [
     'af_kore', 'af_nicole', 'af_nova', 'af_river', 'af_sarah', 'af_sky'
 ]
 
-# Only include verified British female voices
+# British female voices
 BRITISH_FEMALE_VOICES = [
     'bf_alice', 'bf_emma', 'bf_isabella', 'bf_lily'
 ]
 
+# American male voices
+AMERICAN_MALE_VOICES = [
+    'am_adam', 'am_echo', 'am_eric', 'am_fenrir',
+    'am_liam', 'am_michael', 'am_onyx', 'am_puck'
+]
+
+# British male voices
+BRITISH_MALE_VOICES = [
+    'bm_daniel', 'bm_fable', 'bm_george', 'bm_lewis'
+]
+
 # Combined list of all available voices
-ALL_VOICES = AMERICAN_FEMALE_VOICES + BRITISH_FEMALE_VOICES
+ALL_VOICES = AMERICAN_FEMALE_VOICES + BRITISH_FEMALE_VOICES + AMERICAN_MALE_VOICES + BRITISH_MALE_VOICES
 
 def get_random_voice():
     """Randomly select a voice from all available voices"""
