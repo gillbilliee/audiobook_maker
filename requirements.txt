@@ -7,5 +7,7 @@ striprtf>=0.0.29
 kokoro>=0.1.0
 setuptools>=65.5.1
 pydub>=0.25.1
+tqdm>=4.66.0
+torch>=2.0.0
 # Optional: mobi>=0.3.3 (for MOBI/PRC support)
 # Optional: Install calibre from calibre-ebook.com (for LIT support)

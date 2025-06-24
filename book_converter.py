@@ -14,6 +14,16 @@ from tts_sdkokoro import TTSSDKokoro
 import argparse
 import sys
 import scipy.io.wavfile as wav
+import time
+from datetime import datetime, timedelta
+from tqdm import tqdm
+from typing import List, Dict, Any, Optional, Callable
+import contextlib
+import io
+import warnings
+# Suppress common runtime warnings that break tqdm formatting
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Try to import optional dependencies
 try:
@@ -293,7 +303,7 @@ class BookConverter:
             ext = os.path.basename(filepath).split('.')[-1]
         return ext.lower().lstrip('.')
     
-    def process_book(self, book_path: str, output_path: str, format: str = "wav") -> str:
+    def process_book(self, book_path: str, output_path: str, format: str = "wav", *, progress_callback: Optional[Callable[[int,int], None]] = None) -> str:
         """
         Convert a book to audio.
         
@@ -331,27 +341,37 @@ class BookConverter:
             raise
 
         # Split text into chunks at sentence boundaries
-        chunks = self.split_text_into_chunks(text)
-        audio_chunks = []
+        text_chunks = self.split_text_into_chunks(text)
+        total_chunks = len(text_chunks)
         temp_files = []  # Track all temporary files for cleanup
         
-        # Process all chunks
-        all_audio = []
+        # Initialize accumulation structures
+        all_audio: List[np.ndarray] = []
         sample_rate = None
+        # Notify callback that processing is starting
+        if progress_callback:
+            progress_callback(0, total_chunks)
         
-        for i, chunk in enumerate(chunks):
-            print(f"\nProcessing chunk {i + 1}/2...")
+        for i, chunk in enumerate(text_chunks):
+            # Notify progress callback if provided (increment after processing)
+            
+            print(f"\nProcessing chunk {i + 1}/{total_chunks}...")
             print(f"Chunk text: {chunk[:50]}...")  # Show first 50 chars
             try:
                 # Get audio data directly
                 audio_data, sample_rate = self.tts.synthesize(chunk)
                 all_audio.append(audio_data)
                 print(f"Chunk {i + 1} processed successfully")
+                if progress_callback:
+                    progress_callback(i + 1, total_chunks)
             except Exception as e:
                 print(f"Error processing chunk {i + 1}: {str(e)}")
                 continue
         
         # Combine audio data if we have any
+        # Final callback to mark completion if not already at 100%
+        if progress_callback:
+            progress_callback(total_chunks, total_chunks)
         if all_audio and sample_rate:
             print("\nCombining audio chunks...")
             # Combine audio arrays
@@ -411,37 +431,25 @@ def ensure_directory(path: Path):
 
 import random
 
-# Voice options
+# Voice options - only verified working voices
 AMERICAN_FEMALE_VOICES = [
     'af_alloy', 'af_aoede', 'af_bella', 'af_heart', 'af_jessica',
     'af_kore', 'af_nicole', 'af_nova', 'af_river', 'af_sarah', 'af_sky'
 ]
 
+# Only include verified British female voices
 BRITISH_FEMALE_VOICES = [
     'bf_alice', 'bf_emma', 'bf_isabella', 'bf_lily'
 ]
 
-AMERICAN_MALE_VOICES = [
-    'am_adam', 'am_echo', 'am_eric', 'am_fenrir',
-    'am_liam', 'am_michael', 'am_onyx', 'am_puck'
-]
-
-BRITISH_MALE_VOICES = [
-    'bm_daniel', 'bm_fable', 'bm_george', 'bm_lewis'
-]
-
-ALL_VOICES = (
-    AMERICAN_FEMALE_VOICES +
-    BRITISH_FEMALE_VOICES +
-    AMERICAN_MALE_VOICES +
-    BRITISH_MALE_VOICES
-)
+# Combined list of all available voices
+ALL_VOICES = AMERICAN_FEMALE_VOICES + BRITISH_FEMALE_VOICES
 
 def get_random_voice():
     """Randomly select a voice from all available voices"""
     return random.choice(ALL_VOICES)
 
-def process_single_file(input_path: str, output_path: str, voice: str = None):
+def process_single_file(input_path: str, output_path: str, voice: str = None, progress_callback: Optional[Callable[[int,int], None]] = None):
     """Process a single file with the given input and output paths
     
     Args:
@@ -457,12 +465,16 @@ def process_single_file(input_path: str, output_path: str, voice: str = None):
     converter = BookConverter(tts)
     
     try:
-        output_file = converter.process_book(input_path, output_path)
+        output_file = converter.process_book(input_path, output_path, progress_callback=progress_callback)
         print(f"Successfully created audio file: {output_file}")
         return True
     except Exception as e:
         print(f"Error processing {input_path}: {str(e)}")
         return False
+
+def format_time(seconds: float) -> str:
+    """Format seconds into a human-readable time string"""
+    return str(timedelta(seconds=int(seconds)))
 
 def process_batch():
     """Process all supported files in the books/to-do directory"""
@@ -485,68 +497,164 @@ def process_batch():
     
     print(f"Found {len(all_files)} file(s) in the to-do directory.")
     
-    # Filter and process supported files
-    processed_count = 0
-    skipped_count = 0
+    # Filter and categorize files
+    supported_files = []
+    unsupported_files = []
     
     for file_path in all_files:
         if not file_path.is_file():
-            print(f"\nSkipping non-file: {file_path.name}")
-            skipped_count += 1
+            print(f"Skipping non-file: {file_path}")
             continue
             
-        ext = file_path.suffix.lower()
-        file_ext = ext.lstrip('.')
+        ext = file_path.suffix.lower().lstrip('.')
+        if not ext:
+            print(f"Skipping file with no extension: {file_path}")
+            unsupported_files.append((file_path, "No file extension"))
+            continue
         
         # Check if file extension is supported
         supported = False
-        if file_ext in ['pdf', 'epub', 'txt', 'rtf']:
-            supported = True
-        elif file_ext in ['mobi', 'prc'] and MOBI_AVAILABLE:
-            supported = True
-        elif file_ext == 'lit' and CALIBRE_AVAILABLE:
-            supported = True
-            
-        if not supported:
-            reason = "Unsupported format"
-            if file_ext in ['mobi', 'prc'] and not MOBI_AVAILABLE:
-                reason = "MOBI/PRC support not available (install with: pip install mobi)"
-            elif file_ext == 'lit' and not CALIBRE_AVAILABLE:
-                reason = "LIT support requires Calibre (install from calibre-ebook.com)"
-                
-            print(f"\nSkipping {file_path.name}: {reason}")
-            skipped_count += 1
-            continue
-            
-        print(f"\nProcessing: {file_path.name}")
+        reason = ""
         
-        # Create output path with same name but .wav extension in audio directory
-        output_file = audio_dir / f"{file_path.stem}.wav"
-        
-        # Process the file with a random voice
-        try:
-            success = process_single_file(str(file_path), str(output_file))
-            
-            # Move the file to done directory if processing was successful
-            if success:
-                done_file = done_dir / file_path.name
-                shutil.move(str(file_path), str(done_file))
-                print(f"Moved {file_path.name} to done directory.")
-                processed_count += 1
+        if ext in ['pdf', 'epub', 'txt', 'rtf']:
+            supported = True
+        elif ext in ['mobi', 'prc']:
+            if MOBI_AVAILABLE:
+                supported = True
             else:
-                print(f"Failed to process {file_path.name}")
+                reason = "MOBI/PRC support not available (install with: pip install mobi)"
+        elif ext == 'lit':
+            if CALIBRE_AVAILABLE:
+                supported = True
+            else:
+                reason = "LIT support requires Calibre (install from calibre-ebook.com)"
+        else:
+            reason = f"Unsupported file format: .{ext}"
+            
+        if supported:
+            supported_files.append(file_path)
+            print(f"Supported file: {file_path} (.{ext})")
+        else:
+            print(f"Unsupported file: {file_path} - {reason}")
+            unsupported_files.append((file_path, reason))
+    
+    # Print files summary
+    if unsupported_files:
+        print(f"\nSkipping {len(unsupported_files)} unsupported files:")
+        for file_path, reason in unsupported_files:
+            print(f"  - {file_path.name}: {reason}")
+    
+    print(f"\nFound {len(supported_files)} supported files to process:")
+    for i, file_path in enumerate(supported_files, 1):
+        print(f"  {i}. {file_path.name}")
+    
+    if not supported_files:
+        print("\nNo supported files to process.")
+        return
+    
+    print(f"\nProcessing {len(supported_files)} supported file(s)...")
+    
+    # Initialize counters and timer
+    processed_count = 0
+    skipped_count = 0
+    start_time = time.time()
+    
+    # Initialize progress bar
+    with tqdm(
+        total=len(supported_files),
+        desc="Processing files",
+        unit="file",
+        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}{postfix}]",
+    ) as pbar:
+        for file_path in supported_files:
+            # Update progress bar with current file
+            pbar.set_postfix(file=file_path.name[:20] + ('...' if len(file_path.name) > 20 else ''))
+            
+            # Create output path with same name but .wav extension in audio directory
+            output_file = audio_dir / f"{file_path.stem}.wav"
+            
+            # Process the file with a random voice
+            try:
+                # Capture stdout/stderr from the processing to suppress verbose logs
+                buf = io.StringIO()
+                # Redirect stdout (verbose prints) but allow stderr (used by tqdm) to show progress bars
+                with contextlib.redirect_stdout(buf):
+                    # Define nested chunk progress bar and run conversion
+                    inner_bar_holder = {"bar": None}
+                    def chunk_cb(done: int, total: int):
+                        if inner_bar_holder["bar"] is None:
+                            inner_bar_holder["bar"] = tqdm(
+                                total=total,
+                                desc="chunks",
+                                leave=False,
+                                position=1,
+                                unit="chunk",
+                                bar_format="    {l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+                            )
+                        bar = inner_bar_holder["bar"]
+                        bar.n = done
+                        bar.refresh()
+                        if done >= total:
+                            bar.close()
+                            inner_bar_holder["bar"] = None
+                    success = process_single_file(
+                        str(file_path),
+                        str(output_file),
+                        progress_callback=chunk_cb,
+                    )
+                    
+                    if success:
+                        try:
+                            # Move the file to done directory if processing was successful
+                            done_file = done_dir / file_path.name
+                            shutil.move(str(file_path), str(done_file))
+                            processed_count += 1
+                            pbar.write(f"✓ Successfully processed: {file_path.name}")
+                            print(f"Output saved to: {output_file}")
+                        except Exception as e:
+                            success = False
+                            pbar.write(f"✗ Error moving {file_path.name} to done folder: {str(e)}")
+                    
+                    if not success:
+                        skipped_count += 1
+                        pbar.write(f"✗ Failed to process: {file_path.name}")
+                        # Show captured output for debugging
+                        captured_output = buf.getvalue()
+                        if captured_output.strip():
+                            pbar.write("Error details:" + "\n" + "="*50)
+                            pbar.write(captured_output)
+                            pbar.write("="*50)
+                    
+            except Exception as e:
                 skipped_count += 1
-                
-        except Exception as e:
-            print(f"Error processing {file_path.name}: {str(e)}")
-            skipped_count += 1
+                pbar.write(f"✗ Error processing {file_path.name}: {str(e)}")
+            
+            # Update progress
+            pbar.update(1)
+            
+            # Calculate and display estimated time remaining
+            elapsed = time.time() - start_time
+            files_remaining = len(supported_files) - (processed_count + skipped_count)
+            if processed_count > 0 and files_remaining > 0:
+                avg_time_per_file = elapsed / (processed_count + skipped_count)
+                eta = avg_time_per_file * files_remaining
+                pbar.set_postfix(
+                    file=file_path.name[:15] + '...',
+                    eta=format_time(eta)
+                )
     
     # Print summary
-    print("\n" + "="*50)
-    print(f"Processing complete!")
-    print(f"Processed: {processed_count}")
-    print(f"Skipped: {skipped_count}")
-    print("="*50)
+    elapsed_time = time.time() - start_time
+    print("\n" + "="*60)
+    print(f"{'Processing complete!':^60}")
+    print("-"*60)
+    print(f"{'Total files:':<20} {len(supported_files)}")
+    print(f"{'Successfully processed:':<20} {processed_count}")
+    print(f"{'Skipped/Failed:':<20} {skipped_count}")
+    print(f"{'Time taken:':<20} {format_time(elapsed_time)}")
+    if processed_count > 0:
+        print(f"{'Avg time per file:':<20} {format_time(elapsed_time/processed_count) if processed_count > 0 else 'N/A'}")
+    print("="*60)
 
 def main():
     # Parse command line arguments

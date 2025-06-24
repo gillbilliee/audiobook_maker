@@ -128,6 +128,7 @@ The script will randomly select from these voices for each file by default. You 
    - Run `pip install -r requirements.txt`
    - For MOBI/PRC: `pip install mobi`
    - For LIT: Install Calibre from [calibre-ebook.com](https://calibre-ebook.com/)
+   - If you just installed Calibre, restart your computer or sign out and back in to ensure file associations are properly registered
 
 2. **File Not Found**
    - Ensure files are in the `books/to-do` directory
